@@ -1,6 +1,14 @@
-use rand::Rng;
+use atomic_float::AtomicF32;
 use std::any::{type_name, Any};
 use std::fmt::{Debug, Display, Formatter};
+use std::io::{Read, Write};
+use std::net::{TcpStream, UdpSocket};
+use std::ops::Deref;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::thread;
+
+static SOCKET_DEVICE_ADDRESS: &str = "127.0.0.1:9555";
 
 pub struct DeviceInfo {
     pub name: String,
@@ -22,8 +30,7 @@ pub trait Device: AsAny {
 pub struct SocketDevice {
     name: String,
     description: String,
-    is_on: bool,
-    value: f32,
+    address: String,
 }
 
 impl SocketDevice {
@@ -31,21 +38,51 @@ impl SocketDevice {
         SocketDevice {
             name: name.to_string(),
             description: description.to_string(),
-            value: 0.0,
-            is_on: false,
+            address: SOCKET_DEVICE_ADDRESS.to_string(),
         }
     }
 
-    pub fn switch(&mut self) {
-        self.is_on = !self.is_on;
+    fn do_request(&mut self, command: &str, buf: &mut [u8]) -> Result<(), DeviceError> {
+        let mut stream = TcpStream::connect(self.address.clone()).map_err(|e| DeviceError {
+            message: e.to_string(),
+        })?;
+        stream
+            .write((command.to_owned() + "\n").as_bytes())
+            .map_err(|e| DeviceError {
+                message: e.to_string(),
+            })?;
+        stream.read(buf).map_err(|e| DeviceError {
+            message: e.to_string(),
+        })?;
+        Ok(())
     }
 
-    pub fn get_value(&self) -> f32 {
-        self.value
+    pub fn switch(&mut self) -> Result<bool, DeviceError> {
+        let mut buf = [0; 1];
+        self.do_request("switch", &mut buf)?;
+        Ok(buf[0] == 1)
     }
 
-    pub fn is_on(&self) -> bool {
-        self.is_on
+    pub fn get_value(&self) -> Result<f32, DeviceError> {
+        let mut stream = TcpStream::connect(self.address.clone()).map_err(|e| DeviceError {
+            message: e.to_string(),
+        })?;
+        stream
+            .write("getValue\n".as_bytes())
+            .map_err(|e| DeviceError {
+                message: e.to_string(),
+            })?;
+        let mut buf = [0; 4];
+        stream.read(&mut buf).map_err(|e| DeviceError {
+            message: e.to_string(),
+        })?;
+        Ok(f32::from_be_bytes(buf))
+    }
+
+    pub fn is_on(&mut self) -> Result<bool, DeviceError> {
+        let mut buf = [0; 1];
+        self.do_request("getState", &mut buf)?;
+        Ok(buf[0] == 1)
     }
 }
 
@@ -68,21 +105,40 @@ impl Device for SocketDevice {
 pub struct ThermometerDevice {
     name: String,
     description: String,
+    device_addr: String,
+    value: Arc<AtomicF32>,
 }
 
 impl ThermometerDevice {
-    pub fn new(name: &str, description: &str) -> Self {
-        ThermometerDevice {
+    pub fn new(name: &str, description: &str, addr: &str) -> Self {
+        let result = ThermometerDevice {
             name: name.to_string(),
             description: description.to_string(),
+            value: Arc::new(AtomicF32::new(0.0)),
+            device_addr: addr.to_string(),
+        };
+        if !result.device_addr.is_empty() {
+            println!("addr: {}", result.device_addr);
+            result.listen();
         }
+        result
     }
-    pub fn get_value(&self) -> Result<i32, DeviceError> {
-        Some(rand::thread_rng().gen::<i32>())
-            .filter(|&x| x % 2 == 0)
-            .ok_or(DeviceError {
-                message: "bzzzz".to_string(),
-            })
+
+    pub fn get_value(&self) -> f32 {
+        self.value.load(Ordering::Relaxed)
+    }
+
+    fn listen(&self) {
+        let clone_value = self.value.clone();
+        let addr_clone = self.device_addr.clone();
+        thread::spawn(move || {
+            let socket = UdpSocket::bind(addr_clone.deref()).unwrap();
+            loop {
+                let mut buf = [0; 4];
+                socket.recv_from(&mut buf).unwrap();
+                clone_value.store(f32::from_be_bytes(buf), Ordering::Relaxed);
+            }
+        });
     }
 }
 

@@ -1,6 +1,5 @@
 use super::*;
 use crate::device::SocketDevice;
-
 #[test]
 fn test_new_room() {
     let _ = Room::new("комната", 5);
