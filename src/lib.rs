@@ -9,9 +9,7 @@ mod tests {
     use crate::device::SocketDevice;
     use crate::device::ThermometerDevice;
     use crate::room::Room;
-    use std::thread;
-    use std::time::Duration;
-
+    use tokio::time::{sleep, Duration};
 
     // Дом имеет название и содержит несколько помещений.
     #[test]
@@ -83,26 +81,25 @@ mod tests {
 
     // Умная розетка позволяет включать и выключать себя. Предоставляет информацию о текущем состоянии и потребляемой мощности.
     //  Если сервер не работает тест не проходит
-        #[tokio::test]
-        async fn test_socket_device() {
-            let mut home = home::Home::new("Дом".to_string());
-            let room = home.add_room(Room::new("комната1", 2)).unwrap();
-            let socket = room
-                .add_device(Box::new(SocketDevice::new("розетка", "и ее описание")))
-                .unwrap()
-                .to_any()
-                .downcast_mut::<SocketDevice>()
-                .unwrap();
-            let state = socket.is_on().await.unwrap();
-            assert_eq!(socket.is_on().await.unwrap(), state);
-            socket.switch().await.unwrap();
-            assert_eq!(socket.is_on().await.unwrap(), !state);
-            assert_eq!(socket.get_value().await.unwrap(), 123.);
-        }
+    #[tokio::test]
+    async fn test_socket_device() {
+        let mut home = home::Home::new("Дом".to_string());
+        let room = home.add_room(Room::new("комната1", 2)).unwrap();
+        let socket = room
+            .add_device(Box::new(SocketDevice::new("розетка", "и ее описание")))
+            .unwrap()
+            .to_any()
+            .downcast_mut::<SocketDevice>()
+            .unwrap();
+        let state = socket.is_on().await.unwrap();
+        assert_eq!(socket.is_on().await.unwrap(), state);
+        socket.switch().await.unwrap();
+        assert_eq!(socket.is_on().await.unwrap(), !state);
+        assert_eq!(socket.get_value().await.unwrap(), 123.);
+    }
     //Термометр позволяет узнать температуру.
-  /*
-    #[test]
-    fn test_thermometer_device() {
+    #[tokio::test]
+    async fn test_thermometer_device() {
         let mut home = home::Home::new("Дом".to_string());
         let room = home.add_room(Room::new("комната1", 2)).unwrap();
         let thermometer = room
@@ -115,13 +112,13 @@ mod tests {
             .to_any()
             .downcast_mut::<ThermometerDevice>()
             .unwrap();
-        thread::sleep(Duration::new(10, 0));
+        sleep(Duration::from_secs(10)).await;
         let val = thermometer.get_value();
         assert_ne!(val, 0.0);
-        thread::sleep(Duration::new(10, 0));
+        sleep(Duration::from_secs(10)).await;
         assert_ne!(val, thermometer.get_value());
     }
-*/
+
     // Библиотека позволяет строить отчёт о состоянии всех устройств в доме.
     #[test]
     fn test_report() {
