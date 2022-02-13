@@ -1,7 +1,7 @@
 use crate::device::Device;
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::ops::DerefMut;
+use thiserror::Error;
 
 #[cfg(test)]
 mod tests;
@@ -75,19 +75,10 @@ impl Room {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum RoomError {
+    #[error("Ошибка удаления комнаты {0}")]
     RemoveDeviceError(String),
+    #[error("Ошибка добавления комнаты {0}")]
     AddDeviceError(String),
 }
-
-impl Display for RoomError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::RemoveDeviceError(str) => write!(f, "{}", str),
-            Self::AddDeviceError(str) => write!(f, "{}", str),
-        }
-    }
-}
-
-impl Error for RoomError {}

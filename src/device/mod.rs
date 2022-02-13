@@ -1,9 +1,10 @@
 use atomic_float::AtomicF32;
 use std::any::{type_name, Any};
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
 
@@ -162,15 +163,9 @@ impl Device for ThermometerDevice {
         }
     }
 }
-#[derive(Debug)]
+
+#[derive(Debug, Error)]
+#[error("Ошибка устройства {message:?}")]
 pub struct DeviceError {
     message: String,
 }
-
-impl Display for DeviceError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Ошибка устройства {}", self.message)
-    }
-}
-
-impl std::error::Error for DeviceError {}

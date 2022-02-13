@@ -5,8 +5,8 @@ use crate::device::Device;
 use crate::room::{Room, RoomError};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
+use thiserror::Error;
 
 pub struct Home {
     pub name: String,
@@ -54,7 +54,7 @@ impl Home {
     ) -> Result<(), HomeError> {
         let room = self
             .find_room_by_name(room_name)
-            .ok_or_else(|| HomeError::OtherRoomError(format!("Нет комнаты {}", room_name)))?;
+            .ok_or_else(|| HomeError::OtherHomeError(format!("Нет комнаты {}", room_name)))?;
         room.remove_device_by_name(device_name)?;
         Ok(())
     }
@@ -75,29 +75,20 @@ impl Home {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum HomeError {
+    #[error("Ошибка добавления комнаты: {0}.")]
     AddRoomError(String),
+
+    #[error("Ошибка удаления комнаты: {0}.")]
     DeleteRoomError(String),
-    OtherRoomError(String),
+
+    #[error("Ошибка удаления комнаты: {0}.")]
+    OtherHomeError(String),
+
+    #[error("Ошибка имела место: {0}.")]
+    RoomError(#[from] RoomError),
+
+    #[error("Ошибка построения отчета")]
     ReportError,
-}
-
-impl Display for HomeError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::AddRoomError(str) => write!(f, "Ошибка добавления устройства {}", str),
-            Self::DeleteRoomError(str) => write!(f, "Ошибка удаления устройства {}", str),
-            Self::OtherRoomError(str) => write!(f, "{}", str),
-            _ => write!(f, "Ошибка построения отчета"),
-        }
-    }
-}
-
-impl error::Error for HomeError {}
-
-impl From<RoomError> for HomeError {
-    fn from(_: RoomError) -> Self {
-        todo!()
-    }
 }
